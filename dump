@@ -1,0 +1,143 @@
+#!/bin/bash
+# shellcheck disable=2162
+
+###################################
+# This script was developed to help developers connect and dump the test database. 
+# Why? We need everything local.
+# We recommend using Docker.
+#
+# @author: Moises Rebatta
+###################################
+
+set -e
+
+# check this directory
+DEF_DUMP_OUTPUT=$HOME/database/postgres/dumps
+
+###################################
+# DATABASE CREDENTIALS
+###################################
+PG_USER=
+PG_PASS=
+PG_URL=
+PG_DATABASE=
+PG_PORT=
+
+PG_LOCAL_USER=
+PG_LOCAL_PASS=
+PG_LOCAL_URL=
+PG_LOCAL_DATABASE=
+PG_LOCAL_DATABASE_BASTION="bastion"
+PG_LOCAL_PORT=
+
+###################################
+# Local Database name ( docker container )
+###################################
+LOCAL_DATABASE_NAME=
+
+exist_docker() {
+  echo "First review if host has docker"
+  if [ -z "$(which docker 2>/dev/null)" ]; then
+    echo "do you need have a docker installed"
+    exit 1
+  fi
+}
+
+exist_directory_dumps() {
+  if [ ! -d "$DEF_DUMP_OUTPUT" ]; then
+    echo "creating default output ... $DEF_DUMP_OUTPUT"
+    mkdir -p "$DEF_DUMP_OUTPUT"
+  fi
+}
+
+### FUNCTION BEGIN
+# ARGUMENTS:
+#   1. Password
+#   2. Database
+#   3. User
+#   4. Host
+#   5. Port
+#   6. File name
+### FUNCTION END
+dump() {
+  echo "Connect to $4 with $3"
+  echo "URL $4 - $5"
+  docker run --rm -v $DEF_DUMP_OUTPUT:/dumps -e PGPASSWORD=$1 postgres:14-alpine pg_dump --verbose --file=/dumps/$6.dump --format=custom --dbname=$2 --username=$3 --host=$4 --port=$5 
+}
+
+### FUNCTION BEGIN
+# ARGUMENTS:
+#   1. Password
+#   2. User
+#   3. DATABASE 
+### FUNCTION END
+create_db_local() {
+  EXS=$(docker ps -a | grep $LOCAL_DATABASE_NAME)
+  if [ ! -z "$EXS" ]; then
+    docker start $LOCAL_DATABASE_NAME
+  else
+    echo "waiting to up docker..."
+    echo "Password: $1 - User: $2"
+    docker run --name $LOCAL_DATABASE_NAME -p 5432:5432 -v $DEF_DUMP_OUTPUT:/dumps -e POSTGRES_PASSWORD=$1 -e POSTGRES_USER=$2 -e POSTGRES_DB=$3 -d postgres:14-alpine
+    sleep 7
+  fi
+}
+
+### FUNCTION BEGIN
+# ARGUMENTS:
+#   1. Database
+#   2. User
+#   3. File name
+#   4. Host
+### FUNCTION END
+restore_dump() {
+  docker exet -ti $LOCAL_DATABASE_NAME pg_restore --verbose --dbname=$1 --username=$2 --host=$4 /dumps/$3.dump
+}
+
+dump_process() {
+  printf "Hello ... dumping"
+
+  DTT=$(date | cut -d ' ' -f 2,3,5 | sed 's/ /_/g' | sed 's/:/_/g')
+  dump_op "$PG_PASS" "$PG_DATABASE" "$PG_USER" "$PG_URL" $PG_PORT "$PG_USER"
+}
+
+restore_process() {
+  read -p "before to restoring, is there a base to restore in $LOCAL_DATABASE_NAME (y/n): " FFFF
+  if [ "$FFFF" = "y" ];then
+    create_db_local "$PG_LOCAL_PASS" "$PG_LOCAL_USER" "$PG_LOCAL_DATABASE_BASTION"
+    read -p "Please enter database name to restore: " PG_LOCAL_DATABASE
+    read -p "do you use the last item created ? (y/n): " R_USR
+    if [ "$R_USR" = "y" ]; then
+      LAST_DUMP=$(ls -lt $DEF_DUMP_OUTPUT | grep '.dump' | awk 'FNR==1' | rev | cut -d " " -f 1 | rev | cut -d '.' -f 1)
+      echo $DEF_DUMP_OUTPUT
+      echo $LAST_DUMP
+      restore_dump "$PG_LOCAL_DATABASE" "$PG_LOCAL_USER" "$LAST_DUMP"
+    else
+      read -p "Please enter name file to restore : " LAST_DUMP
+      restore_op "$PG_LOCAL_DATABASE" "$PG_LOCAL_USER" "$LAST_DUMP"
+    fi
+  else
+    echo "Please create to database on $LOCAL_DATABASE_NAME :D"
+  fi
+}
+
+ENVRT=$1
+
+echo "Welcome to dumps manager, what do you need?"
+printf "\n1. Dump\n2. Restore\n"
+
+read -p "Option, Please input the number: " OPT_N
+
+exist_docker
+exist_directory_dumps
+
+if [ "$OPT_N" = "1" ]; then
+  dump_proces
+  exit 0;
+elif [ "$OPT_N" = "2" ]; then
+  restore_process
+  exit 0;
+else
+    echo "Invalid Option"
+    exit 1;
+fi

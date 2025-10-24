@@ -11,3 +11,9 @@
 ## REQUIRES
 
 - DOCKER
+- Permission
+
+```
+chmod +x ./dump
+./dump
+```

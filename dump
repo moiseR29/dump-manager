@@ -121,9 +121,14 @@ restore_process() {
   fi
 }
 
-ENVRT=$1
+echo "    .___                                                                        
+  __| _/_ __  _____ ______     _____ _____    ____ _____     ____   ___________ 
+ / __ |  |  \/     \\____ \   /     \\__  \  /    \\__  \   / ___\_/ __ \_  __ \
+/ /_/ |  |  /  Y Y  \  |_> > |  Y Y  \/ __ \|   |  \/ __ \_/ /_/  >  ___/|  | \/
+\____ |____/|__|_|  /   __/  |__|_|  (____  /___|  (____  /\___  / \___  >__|   
+     \/           \/|__|           \/     \/     \/     \//_____/      \/       "
 
-echo "Welcome to dumps manager, what do you need?"
+printf "\nWelcome to dumps manager, what do you need?"
 printf "\n1. Dump\n2. Restore\n"
 
 read -p "Option, Please input the number: " OPT_N
